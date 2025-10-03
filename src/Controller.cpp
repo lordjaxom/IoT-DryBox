@@ -1,11 +1,13 @@
+#include <memory>
+
 #include "IoT.hpp"
 #include "Controller.hpp"
 
-#include <memory>
+#include <Output.hpp>
 
-#include "DallasTemperature.h"
-#include "DFRobot_DHT20.h"
 #include "Display.hpp"
+#include "DHT20.hpp"
+#include "DS18B20.hpp"
 #include "Logger.hpp"
 #include "Mqtt.hpp"
 #include "PushButton.hpp"
@@ -18,13 +20,16 @@ ControllerMode::ControllerMode(Controller& c) noexcept
 ControllerModeOff::ControllerModeOff(Controller& c) noexcept
     : ControllerMode{c}
 {
-    log("Switching controller to OFF");
+    c.heater_.set(0);
+    c.mqtt_.publishState("POWER", "OFF");
 }
 
 void ControllerModeOff::update()
 {
     c.display_.clear();
     c.display_.drawStatusOff();
+    c.display_.drawTemperatureOff(c.dht20_.getTemperature());
+    c.display_.drawHumidityOff(c.dht20_.getHumidity());
     c.display_.show();
 }
 
@@ -36,13 +41,16 @@ void ControllerModeOff::next()
 ControllerModeOn::ControllerModeOn(Controller& c) noexcept
     : ControllerMode{c}
 {
-    log("Switching controller to ON");
+    c.heater_.set(128);
+    c.mqtt_.publishState("POWER", "ON");
 }
 
 void ControllerModeOn::update()
 {
     c.display_.clear();
     c.display_.drawStatusOn();
+    c.display_.drawTemperatureOn(c.dht20_.getTemperature());
+    c.display_.drawHumidityOn(c.dht20_.getHumidity());
     c.display_.show();
 }
 
@@ -51,34 +59,62 @@ void ControllerModeOn::next()
     c.mode_ = std::make_unique<ControllerModeOff>(c);
 }
 
-Controller::Controller(Mqtt& mqtt, PushButton& onOffButton, Display& display)
-    : mqtt_{mqtt},
-      display_{display},
-      updateTimer_{updateDelay, true, [this] { update(); }},
-      onOffClicked_{onOffButton.clickedEvent.subscribe([this](auto const clicks) { onOffClicked(clicks); })}
+void ControllerModeOn::upClicked()
+{
+}
+
+void ControllerModeOn::downClicked()
+{
+}
+
+Controller::Controller(
+    Mqtt& mqtt,
+    PushButton& onOffButton,
+    PushButton& upButton,
+    PushButton& downButton,
+    Output& heater,
+    DHT20& dht20,
+    DS18B20& ds18b20,
+    Display& display
+) : mqtt_{mqtt},
+    heater_{heater},
+    dht20_{dht20},
+    ds18b20_{ds18b20},
+    display_{display},
+    updateTimer_{updateDelay, true, [this] { update(); }},
+    publishTimer_{publishDelay, true, [this] { publish(); }},
+    onOffClicked_{onOffButton.clickedEvent.subscribe([this](auto const clicks) { onOffClicked(clicks); })},
+    upClicked_{upButton.clickedEvent.subscribe([this](auto const clicks) { upClicked(clicks); })},
+    downClicked_{downButton.clickedEvent.subscribe([this](auto const clicks) { downClicked(clicks); })}
 {
     IoT.beginEvent += [this]() { mode_ = std::make_unique<ControllerModeOff>(*this); };
 }
 
-extern DFRobot_DHT20 dht20;
-extern DallasTemperature ds18b20;
-
-void Controller::update()
+void Controller::update() const
 {
-    static int count = 0;
-    if (++count % 10 == 0) {
-        mqtt_.publishState("TEMP1", str(dht20.getTemperature()));
-        ds18b20.requestTemperatures();
-        mqtt_.publishState("TEMP2", str(ds18b20.getTempCByIndex(0)));
-    }
+    dht20_.update();
+    ds18b20_.update();
     mode_->update();
 }
 
-void Controller::onOffClicked(unsigned const clicks)
+void Controller::publish() const
 {
-    mqtt_.publishState("BUTTON1", str(clicks));
+    mqtt_.publishState("TEMP1", str(dht20_.getTemperature()));
+    mqtt_.publishState("HUMI", str(dht20_.getHumidity()));
+    mqtt_.publishState("TEMP2", str(ds18b20_.getTemperature()));
+}
 
-    if (clicks == 1) {
-        mode_->next();
-    }
+void Controller::onOffClicked(unsigned const clicks) const
+{
+    if (clicks == 1) mode_->next();
+}
+
+void Controller::upClicked(unsigned const clicks) const
+{
+    if (clicks == 1) mode_->upClicked();
+}
+
+void Controller::downClicked(unsigned const clicks) const
+{
+    if (clicks == 1) mode_->downClicked();
 }

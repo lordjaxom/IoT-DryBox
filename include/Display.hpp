@@ -18,7 +18,12 @@ public:
     void show();
 
     void drawStatusOn();
+    void drawTemperatureOn(float temperature);
+    void drawHumidityOn(float humidity);
+
     void drawStatusOff();
+    void drawTemperatureOff(float temperature);
+    void drawHumidityOff(float humidity);
 
 private:
     void begin();

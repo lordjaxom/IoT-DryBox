@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include "main.hpp"
 
 #include "IoT.hpp"
 #include "Display.hpp"
@@ -39,6 +38,41 @@ void Display::drawStatusOn()
     display_.println(F("on"));
 }
 
+void Display::drawTemperatureOn(float const temperature)
+{
+    int TempInteger = int(temperature);
+    int TempFraction = int((temperature - TempInteger) * 10);
+    char TempIntegerDisplay[4];
+    char TempFractionDisplay[4];
+    dtostrf(TempInteger, 2, 0, TempIntegerDisplay);
+    dtostrf(TempFraction, 1, 0, TempFractionDisplay);
+
+    display_.setTextSize(4);
+    display_.setTextColor(SSD1306_WHITE);
+
+    display_.setCursor(4, 30);
+    display_.print(TempIntegerDisplay);
+    display_.setCursor(64, 30);
+    display_.print(TempFractionDisplay);
+    display_.setCursor(104, 30);
+    display_.print(F("C"));
+    display_.fillRect(54, 54, 4, 4, SSD1306_WHITE);
+    display_.fillCircle(95, 34, 4, SSD1306_WHITE);
+    display_.fillCircle(95, 34, 2, SSD1306_BLACK);
+}
+
+void Display::drawHumidityOn(float const humidity)
+{
+    char HumIntegerDisplay[4];
+    dtostrf(humidity, 2, 0, HumIntegerDisplay);
+
+    display_.setTextSize(2);
+    display_.setTextColor(SSD1306_WHITE);
+    display_.setCursor(8, 2);
+    display_.print(HumIntegerDisplay);
+    display_.println(F(" %"));
+}
+
 void Display::drawStatusOff()
 {
     display_.fillRect(66, 0, 62, 18, SSD1306_WHITE);
@@ -51,6 +85,43 @@ void Display::drawStatusOff()
     display_.setTextColor(SSD1306_WHITE);
     display_.setCursor(104, 2);
     display_.println(F("on"));
+}
+
+void Display::drawTemperatureOff(float const temperature)
+{
+    char tempDisplay[4];
+    dtostrf(temperature, 2, 0, tempDisplay);
+
+    display_.setTextSize(2);
+    display_.setTextColor(SSD1306_WHITE);
+    display_.setCursor(8, 2);
+    display_.print(tempDisplay);
+
+    display_.println(F(" C"));
+    display_.fillCircle(38, 5, 3, SSD1306_WHITE);
+    display_.fillCircle(38, 5, 2, SSD1306_BLACK);
+}
+
+void Display::drawHumidityOff(float const humidity)
+{
+    int const humInt = static_cast<int>(humidity);
+    char humIntDisplay[4];
+    dtostrf(humInt, 2, 0, humIntDisplay);
+
+    int const humFrac = static_cast<int>((humidity - humInt) * 10);
+    char humFracDisplay[4];
+    dtostrf(humFrac, 1, 0, humFracDisplay);
+
+    display_.setTextSize(4);
+    display_.setTextColor(SSD1306_WHITE);
+    display_.setCursor(4, 30);
+    display_.print(humIntDisplay);
+    display_.setCursor(64, 30);
+    display_.print(humFracDisplay);
+    display_.setCursor(104, 30);
+    display_.println(F("%"));
+
+    display_.fillRect(54, 54, 4, 4, SSD1306_WHITE);
 }
 
 void Display::begin()
@@ -130,101 +201,6 @@ const unsigned char Logo[] PROGMEM = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
 
-// void drawTemperature()
-// {
-//     if (status == true) {
-//         int TempInteger = int(Temperature);
-//         int TempFraction = int((Temperature - TempInteger) * 10);
-//         dtostrf(TempInteger, 2, 0, TempIntegerDisplay);
-//         dtostrf(TempFraction, 1, 0, TempFractionDisplay);
-//
-//         display.setTextSize(4);
-//         display.setTextColor(SSD1306_WHITE);
-//
-// #ifdef Fahrenheit
-//         if (Temperature > 100) {
-//             display.setCursor(10, 30);
-//         } else {
-//             display.setCursor(64, 30);
-//             display.print(TempFractionDisplay);
-//             display.fillRect(54, 54, 4, 4, SSD1306_WHITE);
-//             display.setCursor(4, 30);
-//         }
-//
-//         display.print(TempIntegerDisplay);
-//         display.fillCircle(95, 34, 4, SSD1306_WHITE);
-//         display.fillCircle(95, 34, 2, SSD1306_BLACK);
-//         display.setCursor(104, 30);
-//         display.print(F("F"));
-// #endif
-//
-// #ifndef Fahrenheit
-//         display.setCursor(4, 30);
-//         display.print(TempIntegerDisplay);
-//         display.setCursor(64, 30);
-//         display.print(TempFractionDisplay);
-//         display.setCursor(104, 30);
-//         display.print(F("C"));
-//         display.fillRect(54, 54, 4, 4, SSD1306_WHITE);
-//         display.fillCircle(95, 34, 4, SSD1306_WHITE);
-//         display.fillCircle(95, 34, 2, SSD1306_BLACK);
-// #endif
-//     } else {
-//         dtostrf(Temperature, 2, 0, TempIntegerDisplay);
-//
-//         display.setTextSize(2);
-//         display.setTextColor(SSD1306_WHITE);
-//         display.setCursor(8, 2);
-//         display.print(TempIntegerDisplay);
-//
-// #ifdef Fahrenheit
-//         if (Temperature > 100) {
-//             display.setCursor(42, 2);
-//             display.fillCircle(48, 5, 3, SSD1306_WHITE);
-//             display.fillCircle(48, 5, 2, SSD1306_BLACK);
-//         } else {
-//             display.fillCircle(38, 5, 3, SSD1306_WHITE);
-//             display.fillCircle(38, 5, 2, SSD1306_BLACK);
-//         }
-//         display.println(F(" F"));
-// #endif
-// #ifndef Fahrenheit
-//         display.println(F(" C"));
-//         display.fillCircle(38, 5, 3, SSD1306_WHITE);
-//         display.fillCircle(38, 5, 2, SSD1306_BLACK);
-// #endif
-//     }
-// }
-//
-// void drawHumidity()
-// {
-//     if (status == true) {
-//         dtostrf(Humidity, 2, 0, HumIntegerDisplay);
-//
-//         display.setTextSize(2);
-//         display.setTextColor(SSD1306_WHITE);
-//         display.setCursor(8, 2);
-//         display.print(HumIntegerDisplay);
-//         display.println(F(" %"));
-//     } else {
-//         int HumInteger = int(Humidity);
-//         int HumFraction = int((Humidity - HumInteger) * 10);
-//         dtostrf(HumInteger, 2, 0, HumIntegerDisplay);
-//         dtostrf(HumFraction, 1, 0, HumFractionDisplay);
-//
-//         display.setTextSize(4);
-//         display.setTextColor(SSD1306_WHITE);
-//         display.setCursor(4, 30);
-//         display.print(HumIntegerDisplay);
-//         display.setCursor(64, 30);
-//         display.print(HumFractionDisplay);
-//         display.setCursor(104, 30);
-//         display.println(F("%"));
-//
-//         display.fillRect(54, 54, 4, 4, SSD1306_WHITE);
-//     }
-// }
-//
 // void drawTargetTemperature()
 // {
 //     display.setCursor(0, 2);

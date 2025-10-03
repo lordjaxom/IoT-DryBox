@@ -16,3 +16,9 @@ std::function<void(bool value)> gpioOutput(uint8_t const pin, bool const invert)
     IoT.beginEvent += [=] { pinMode(pin, OUTPUT); };
     return [=](bool const value) { digitalWrite(pin, static_cast<uint8_t>(value == invert ? LOW : HIGH)); };
 }
+
+std::function<void(uint8_t value)> analogOutput(uint8_t const pin)
+{
+    IoT.beginEvent += [=] { pinMode(pin, OUTPUT); };
+    return [=](uint8_t const value) { analogWrite(pin, value); };
+}
