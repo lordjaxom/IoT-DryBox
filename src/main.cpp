@@ -10,6 +10,8 @@ REQUIRES the following Arduino libraries:
 
 #include <DFRobot_DHT20.h>
 #include <Wire.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
 
 #include "main.hpp"
 
@@ -32,6 +34,7 @@ Mqtt mqtt{mqtt_server};
 static constexpr uint8_t onOffButtonPin = 0;
 static constexpr uint8_t upButtonPin = 2;
 static constexpr uint8_t downButtonPin = 16;
+static constexpr uint8_t heaterPin = 14;
 
 PushButton onOffButton{debounce(gpioInput(onOffButtonPin))};
 PushButton upButton{debounce(gpioInput(upButtonPin))};
@@ -44,6 +47,8 @@ Controller controller{mqtt, onOffButton, display};
 // #define Fahrenheit
 
 DFRobot_DHT20 dht20;
+OneWire oneWire{13};
+DallasTemperature ds18b20{&oneWire};
 
 unsigned long previousMillis = 0;
 bool status = false;
@@ -61,6 +66,10 @@ char TargetTempDisplay[4];
 void setup()
 {
     IoT.begin();
+
+    //Wire.begin(4, 5);
+    dht20.begin();
+    ds18b20.begin();
 //
 //     Wire.begin(SDA, SCL);
 //

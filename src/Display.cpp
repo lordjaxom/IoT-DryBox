@@ -15,6 +15,16 @@ Display::Display()
     IoT.beginEvent += [this] { begin(); };
 }
 
+void Display::clear()
+{
+    display_.clearDisplay();
+}
+
+void Display::show()
+{
+    display_.display();
+}
+
 void Display::drawStatusOn()
 {
     display_.fillRect(66, 0, 62, 18, SSD1306_WHITE);

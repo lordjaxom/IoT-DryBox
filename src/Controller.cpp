@@ -1,5 +1,10 @@
 #include "IoT.hpp"
 #include "Controller.hpp"
+
+#include <memory>
+
+#include "DallasTemperature.h"
+#include "DFRobot_DHT20.h"
 #include "Display.hpp"
 #include "Logger.hpp"
 #include "Mqtt.hpp"
@@ -18,12 +23,14 @@ ControllerModeOff::ControllerModeOff(Controller& c) noexcept
 
 void ControllerModeOff::update()
 {
+    c.display_.clear();
     c.display_.drawStatusOff();
+    c.display_.show();
 }
 
 void ControllerModeOff::next()
 {
-    c.mode_.reset(new ControllerModeOn{c});
+    c.mode_ = std::make_unique<ControllerModeOn>(c);
 }
 
 ControllerModeOn::ControllerModeOn(Controller& c) noexcept
@@ -34,12 +41,14 @@ ControllerModeOn::ControllerModeOn(Controller& c) noexcept
 
 void ControllerModeOn::update()
 {
+    c.display_.clear();
     c.display_.drawStatusOn();
+    c.display_.show();
 }
 
 void ControllerModeOn::next()
 {
-    c.mode_.reset(new ControllerModeOff{c});
+    c.mode_ = std::make_unique<ControllerModeOff>(c);
 }
 
 Controller::Controller(Mqtt& mqtt, PushButton& onOffButton, Display& display)
@@ -48,11 +57,20 @@ Controller::Controller(Mqtt& mqtt, PushButton& onOffButton, Display& display)
       updateTimer_{updateDelay, true, [this] { update(); }},
       onOffClicked_{onOffButton.clickedEvent.subscribe([this](auto const clicks) { onOffClicked(clicks); })}
 {
-    IoT.beginEvent += [this]() { mode_.reset(new ControllerModeOff(*this)); };
+    IoT.beginEvent += [this]() { mode_ = std::make_unique<ControllerModeOff>(*this); };
 }
+
+extern DFRobot_DHT20 dht20;
+extern DallasTemperature ds18b20;
 
 void Controller::update()
 {
+    static int count = 0;
+    if (++count % 10 == 0) {
+        mqtt_.publishState("TEMP1", str(dht20.getTemperature()));
+        ds18b20.requestTemperatures();
+        mqtt_.publishState("TEMP2", str(ds18b20.getTempCByIndex(0)));
+    }
     mode_->update();
 }
 

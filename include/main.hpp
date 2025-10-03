@@ -5,8 +5,8 @@
 #include <Adafruit_SSD1306.h>
 #include <DFRobot_DHT20.h>
 
-#define SDA 4
-#define SCL 5
+//#define SDA 4
+//#define SCL 5
 
 #define Heater 14
 

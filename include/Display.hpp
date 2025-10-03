@@ -14,13 +14,16 @@ public:
     Display();
     Display(Display const&) = delete;
 
+    void clear();
+    void show();
+
     void drawStatusOn();
     void drawStatusOff();
 
 private:
     void begin();
 
-    Adafruit_SSD1306 display_{width, height, &Wire, oledReset};
+    Adafruit_SSD1306 display_{width, height, &Wire, -1};
 };
 
 #endif

@@ -25,6 +25,8 @@ void IoTClass::begin()
 {
     Logger.begin();
 
+    delay(1000);
+
     log("starting ESP-IoT based application");
 
     // No watchdog since WiFi disconnect shouldn't stop DryBox
