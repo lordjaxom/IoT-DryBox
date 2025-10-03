@@ -82,7 +82,6 @@ Controller::Controller(
     ds18b20_{ds18b20},
     display_{display},
     updateTimer_{updateDelay, true, [this] { update(); }},
-    publishTimer_{publishDelay, true, [this] { publish(); }},
     onOffClicked_{onOffButton.clickedEvent.subscribe([this](auto const clicks) { onOffClicked(clicks); })},
     upClicked_{upButton.clickedEvent.subscribe([this](auto const clicks) { upClicked(clicks); })},
     downClicked_{downButton.clickedEvent.subscribe([this](auto const clicks) { downClicked(clicks); })}
@@ -95,17 +94,16 @@ void Controller::update() const
     dht20_.update();
     ds18b20_.update();
     mode_->update();
-}
 
-void Controller::publish() const
-{
-    mqtt_.publishState("TEMP1", str(dht20_.getTemperature()));
-    mqtt_.publishState("HUMI", str(dht20_.getHumidity()));
-    mqtt_.publishState("TEMP2", str(ds18b20_.getTemperature()));
+    mqtt_.publishTelemetry("SENSOR",str(
+        R"({"DHT20":{"Temperature":)", dht20_.getTemperature(), R"(,"Humidity":)", dht20_.getHumidity(), R"(},)",
+        R"("DS18B20":{"Temperature":)", ds18b20_.getTemperature(), R"(}})"
+    ));
 }
 
 void Controller::onOffClicked(unsigned const clicks) const
 {
+    mqtt_.publishState("BUTTON1", str(clicks));
     if (clicks == 1) mode_->next();
 }
 

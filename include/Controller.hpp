@@ -51,8 +51,7 @@ public:
 
 class Controller
 {
-    static constexpr uint32_t updateDelay = 100;
-    static constexpr uint32_t publishDelay = 1000;
+    static constexpr uint32_t updateDelay = 1000;
 
     friend class ControllerModeOff;
     friend class ControllerModeOn;
@@ -72,7 +71,6 @@ public:
 
 private:
     void update() const;
-    void publish() const;
     void onOffClicked(unsigned clicks) const;
     void upClicked(unsigned clicks) const;
     void downClicked(unsigned clicks) const;
@@ -83,7 +81,6 @@ private:
     DS18B20& ds18b20_;
     Display& display_;
     Timer updateTimer_;
-    Timer publishTimer_;
     Subscription onOffClicked_;
     Subscription upClicked_;
     Subscription downClicked_;

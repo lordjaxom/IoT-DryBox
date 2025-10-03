@@ -9,5 +9,5 @@ DHT20::DHT20() noexcept
 void DHT20::update()
 {
     temperature_ = sensor_.getTemperature();
-    humidity_ = sensor_.getHumidity();
+    humidity_ = sensor_.getHumidity() * 100.0f;
 }

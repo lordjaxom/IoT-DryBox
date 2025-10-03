@@ -1,7 +1,6 @@
 #ifndef ESP8266_IOT_DEBOUNCE_HPP
 #define ESP8266_IOT_DEBOUNCE_HPP
 
-#include <stdint.h>
 #include <utility>
 
 template<typename Input>

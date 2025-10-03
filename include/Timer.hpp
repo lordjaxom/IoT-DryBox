@@ -15,7 +15,7 @@ public:
     Timer(uint32_t timeout, bool repeat, Handler handler) noexcept;
     Timer(Timer const&) = delete;
 
-    bool active() const { return timeout_ > 0; }
+    [[nodiscard]] bool active() const { return timeout_ > 0; }
 
     void start(uint32_t timeout, bool repeat = false);
     void stop();
