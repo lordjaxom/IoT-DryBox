@@ -39,7 +39,9 @@ void Display::showStandbyPanel(float const temperature, float const humidity)
     display_.setTextSize(4);
     display_.setTextColor(SSD1306_WHITE);
     display_.setCursor(4, 30);
-    display_.printf("%2.1f", humidity);
+    display_.printf("%2.0f", humidity);
+    display_.setCursor(64,30);
+    display_.print(static_cast<int>(humidity * 10.0f) % 10);
     display_.setCursor(104, 30);
     display_.println(F("%"));
     display_.fillRect(54, 54, 4, 4, SSD1306_WHITE);
@@ -64,7 +66,9 @@ void Display::showHeatingPanel(float const temperature, float const humidity)
     display_.setTextSize(4);
     display_.setTextColor(SSD1306_WHITE);
     display_.setCursor(4, 30);
-    display_.printf("%2.1f", temperature);
+    display_.printf("%2.0f", temperature);
+    display_.setCursor(64,30);
+    display_.print(static_cast<int>(temperature * 10.0f) % 10);
     display_.setCursor(104, 30);
     display_.print(F("C"));
     display_.fillRect(54, 54, 4, 4, SSD1306_WHITE);
