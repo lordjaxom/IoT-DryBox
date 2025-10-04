@@ -147,17 +147,17 @@ void Controller::telemetry() const
 
 void Controller::onOffClicked(unsigned const clicks) const
 {
-    if (clicks == 1) mode_->onOffClicked();
+    if (clicks == PushButton::singleClick) mode_->onOffClicked();
 }
 
 void Controller::upClicked(unsigned const clicks) const
 {
-    if (clicks == 1) mode_->upClicked();
+    if (clicks == PushButton::singleClick) mode_->upClicked();
 }
 
 void Controller::downClicked(unsigned const clicks) const
 {
-    if (clicks == 1) mode_->downClicked();
+    if (clicks == PushButton::singleClick) mode_->downClicked();
 }
 
 void Controller::powerReceived(String const& payload)
