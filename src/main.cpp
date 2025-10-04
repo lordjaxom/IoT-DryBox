@@ -6,8 +6,9 @@
 #include "DS18B20.hpp"
 #include "Gpio.hpp"
 #include "Mqtt.hpp"
-#include "Output.hpp"
 #include "PushButton.hpp"
+
+#include "Heating.h"
 
 static constexpr auto client_id = "Workshop-Appliance-DryBox";
 static constexpr auto wifi_ssid = "VillaKunterbunt";
@@ -26,35 +27,32 @@ static constexpr uint8_t heaterPin = 14;
 PushButton onOffButton{debounce(gpioInput(onOffButtonPin))};
 PushButton upButton{debounce(gpioInput(upButtonPin))};
 PushButton downButton{debounce(gpioInput(downButtonPin))};
-Output heater{gpioOutput(heaterPin)};
 
 DHT20 dht20;
 DS18B20 ds18b20{ds18b20Pin};
 Display display;
+
 Controller controller{
     mqtt,
     onOffButton,
     upButton,
     downButton,
-    heater,
     dht20,
     ds18b20,
     display
 };
 
-// Uncomment the next line if you want the temperature to be displayed in Fahrenheit, it is displayed in Celcius by default
-// #define Fahrenheit
-
-int TargetTemp = 45;
-
 void setup()
 {
+    pinMode(heaterPin, OUTPUT);
+    Wire.setClock(400'000);
     IoT.begin();
 }
 
 void loop()
 {
     IoT.loop();
+
     //
     // // Heating system ON:
     // while (status == true) {
@@ -131,3 +129,22 @@ void loop()
     //     }
     // }
 }
+
+extern "C" {
+
+    float readTemperature()
+    {
+        return ds18b20.getTemperature();
+    }
+
+    void setHeater(int const level)
+    {
+        analogWrite(heaterPin, level);
+    }
+
+    void reportValues(char const *text)
+    {
+        mqtt.publishTelemetry("HEATING", text);
+    }
+
+} // extern "C"

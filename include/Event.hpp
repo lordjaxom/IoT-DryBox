@@ -15,7 +15,7 @@ class Event
     using Handler = std::function<Signature>;
 
 public:
-    Event() noexcept {}
+    Event() noexcept = default;
     Event(Event const&) = delete;
 
     Event& operator+=(Handler handler)

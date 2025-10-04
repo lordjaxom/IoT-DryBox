@@ -2,15 +2,14 @@
 
 #include "IoT.hpp"
 #include "Controller.hpp"
-
-#include <Output.hpp>
-
 #include "Display.hpp"
 #include "DHT20.hpp"
 #include "DS18B20.hpp"
 #include "Logger.hpp"
 #include "Mqtt.hpp"
 #include "PushButton.hpp"
+
+#include "Heating.h"
 
 ControllerMode::ControllerMode(Controller& c) noexcept
     : c{c}
@@ -20,7 +19,6 @@ ControllerMode::ControllerMode(Controller& c) noexcept
 ControllerModeOff::ControllerModeOff(Controller& c) noexcept
     : ControllerMode{c}
 {
-    c.heater_.set(0);
     c.mqtt_.publishState("POWER", "OFF");
 }
 
@@ -28,7 +26,7 @@ void ControllerModeOff::update()
 {
     c.display_.clear();
     c.display_.drawStatusOff();
-    c.display_.drawTemperatureOff(c.dht20_.getTemperature());
+    c.display_.drawTemperatureOff(c.ds18b20_.getTemperature());
     c.display_.drawHumidityOff(c.dht20_.getHumidity());
     c.display_.show();
 }
@@ -41,7 +39,6 @@ void ControllerModeOff::next()
 ControllerModeOn::ControllerModeOn(Controller& c) noexcept
     : ControllerMode{c}
 {
-    c.heater_.set(128);
     c.mqtt_.publishState("POWER", "ON");
 }
 
@@ -49,7 +46,7 @@ void ControllerModeOn::update()
 {
     c.display_.clear();
     c.display_.drawStatusOn();
-    c.display_.drawTemperatureOn(c.dht20_.getTemperature());
+    c.display_.drawTemperatureOn(c.ds18b20_.getTemperature());
     c.display_.drawHumidityOn(c.dht20_.getHumidity());
     c.display_.show();
 }
@@ -72,16 +69,15 @@ Controller::Controller(
     PushButton& onOffButton,
     PushButton& upButton,
     PushButton& downButton,
-    Output& heater,
     DHT20& dht20,
     DS18B20& ds18b20,
     Display& display
 ) : mqtt_{mqtt},
-    heater_{heater},
     dht20_{dht20},
     ds18b20_{ds18b20},
     display_{display},
     updateTimer_{updateDelay, true, [this] { update(); }},
+    telemetryTimer_{telemetryDelay, true, [this] { telemetry(); }},
     onOffClicked_{onOffButton.clickedEvent.subscribe([this](auto const clicks) { onOffClicked(clicks); })},
     upClicked_{upButton.clickedEvent.subscribe([this](auto const clicks) { upClicked(clicks); })},
     downClicked_{downButton.clickedEvent.subscribe([this](auto const clicks) { downClicked(clicks); })}
@@ -91,10 +87,12 @@ Controller::Controller(
 
 void Controller::update() const
 {
-    dht20_.update();
-    ds18b20_.update();
     mode_->update();
+    controlHeater(mode_->getTargetTemperature());
+}
 
+void Controller::telemetry() const
+{
     mqtt_.publishTelemetry("SENSOR",str(
         R"({"DHT20":{"Temperature":)", dht20_.getTemperature(), R"(,"Humidity":)", dht20_.getHumidity(), R"(},)",
         R"("DS18B20":{"Temperature":)", ds18b20_.getTemperature(), R"(}})"

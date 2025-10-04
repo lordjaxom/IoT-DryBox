@@ -2,6 +2,7 @@
 #include "DHT20.hpp"
 
 DHT20::DHT20() noexcept
+    : updateTimer_{updateDelay, true, [this] { update(); }}
 {
     IoT.beginEvent += [this] { sensor_.begin(); };
 }

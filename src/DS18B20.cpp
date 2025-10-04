@@ -1,15 +1,20 @@
 #include "IoT.hpp"
 #include "DS18B20.hpp"
 
-DS18B20::DS18B20(uint8_t const pin) noexcept
-        : oneWire_{pin},
-          sensor_{&oneWire_}
+static DS18B20* instance;
+
+void DS18B20::handleTemperatureChange(int, int32_t const temperature)
 {
-    IoT.beginEvent += [this] { sensor_.begin(); };
+    instance->temperature_ = instance->nonBlocking_.rawToCelsius(temperature);
 }
 
-void DS18B20::update()
+DS18B20::DS18B20(uint8_t const pin) noexcept
+    : oneWire_{pin},
+      sensor_{&oneWire_},
+      nonBlocking_{&sensor_},
+      looped_{IoT.loopEvent.subscribe([this] { nonBlocking_.update(); })}
 {
-    sensor_.requestTemperatures();
-    temperature_ = sensor_.getTempCByIndex(0);
+    instance = this;
+    IoT.beginEvent += [this] { nonBlocking_.begin(NonBlockingDallas::resolution_12, 1000); };
+    nonBlocking_.onTemperatureChange(&DS18B20::handleTemperatureChange);
 }

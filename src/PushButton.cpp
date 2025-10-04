@@ -6,7 +6,7 @@
 PushButton::PushButton(Handler input) noexcept
     : input_(std::move(input)),
       looped_{IoT.loopEvent.subscribe([this] { loop(); })},
-      timer_{[this] { expired(); }}
+      expiredTimer_{[this] { expired(); }}
 {
 }
 
@@ -14,11 +14,11 @@ void PushButton::loop() {
     if (auto const value = input_(); value_ != value) {
         value_ = value;
         if (value_) {
-            timer_.start(1000);
+            expiredTimer_.start(1000);
         } else if (!finished_) {
             ++clicks_;
             clickedEvent(singleClick);
-            timer_.start(200);
+            expiredTimer_.start(200);
         } else {
             finished_ = false;
         }

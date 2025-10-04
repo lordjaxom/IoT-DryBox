@@ -1,65 +1,49 @@
 #include <math.h>
 #include <stdbool.h>
+#include <stdio.h>
 
-// Vom System bereitgestellt:
-float readTu(void);
-void  setHeater(int level);
+#include "Heating.h"
 
-// Vorgaben (können global/extern kommen)
-float Ts = 50.0f; // Sollwert in °C
+// ---------------- Parameter für 1 Hz ----------------
+#define DT_SEC                 (1.0f)    // 1 Aufruf pro Sekunde
+#define TU_FILTER_TAU_SEC      (1.2f)    // etwas größer bei 1 Hz
 
-// ---------------- Parameter (gute Startwerte) ----------------
-#define DT_SEC              (0.1f)     // 100 ms
+// PI-Gains (auf PWM 0..128 abgestimmt, 1/s)
+#define KP                     (10.0f)   // etwas kleiner als bei 10 Hz
+#define KI_BASE                (0.0275f) // weiterhin pro Sekunde
+#define KI_BLEED_FACTOR        (3.5f)    // schnelleres Entladen bei e < 0
 
-// Tu-Filter (einfacher IIR: y += a*(x - y))
-#define TU_FILTER_TAU_SEC   (0.8f)     // Sensor glätten, aber flott bleiben
+#define I_MIN                  (0.0f)
+#define I_MAX                  (128.0f)
 
-// PI-Regler (auf Tu) — auf PWM-Range 0..128 abgestimmt
-// Herleitung: aus vorherigem Modell KP~30 (0..255) -> hier ~halb so groß
-#define KP                  (15.0f)    // proportionaler Gain
-// Verhältnis KI/KP ~ 0.00183 1/s -> KI ~ 0.0275 1/s bei KP=15
-#define KI                  (0.0275f)  // Integralgain [1/s]
+#define PWM_MIN                (0)
+#define PWM_MAX                (160)
+#define PWM_SLEW_PER_TICK      (16)      // 16 Counts pro Sekunde
 
-// Integrator-Grenzen (als PWM-Äquivalent)
-#define I_MIN               (0.0f)
-#define I_MAX               (128.0f)
+#define TU_BAND                (0.2f)    // Totzone
 
-// Ausgangsbegrenzung
-#define PWM_MIN             (0)
-#define PWM_MAX             (128)
+// Zweistufiges Warmup (A=Vollgas, B=Taper)
+#define WARMUP_A_FULL_MARGIN   (4.0f)    // bis Ts-4 K = 128
+#define WARMUP_B_TAPER_MARGIN  (1.2f)    // bis Ts-1.2 K Taper -> hold
 
-// Slew-Rate-Begrenzung (max. Änderung pro 100 ms)
-#define PWM_SLEW_PER_TICK   (40)       // zügig, bei Bedarf kleiner wählen
-
-// Totzone um Ts (verhindert Sägen)
-#define TU_BAND             (0.2f)     // in K
-
-// Aufheizphase: mit Boost bis kurz vor Ts
-#define WARMUP_MARGIN       (1.0f)     // Umschalten auf PI bei Ts - 1 K
-#define BOOST_EXTRA         (32)       // zusätzl. PWM über dem Halt-Level, max 128
-
-// Schätzung für initialen Halt-PWM (nur für schnellere Annäherung)
-// grob: PWM ≈ G * (Ts - Tu0), mit G ~ 3.8 Counts/K (für Range 0..128)
-#define HOLD_GAIN_EST       (3.8f)
-
-// -------------------------------------------------------------
+// Haltleistung-Schätzer (Range 0..128)
+#define HOLD_GAIN_EST          (3.8f)
 
 typedef enum { PHASE_WARMUP = 0, PHASE_HOLD = 1 } phase_t;
 
 static struct {
-    // Zustände
     float Tu_f;          // gefiltertes Tu
-    float I;             // Integrator (als PWM-Äquivalent 0..128)
-    int   pwm;           // letzter ausgegebener PWM-Wert
-    phase_t phase;       // Warmup/Hold
-    float Tu0;           // Start-Umgebung für Schätzung
-    bool  initialized;   // Filter init?
-    // Merker für „bumpless transfer“
+    float Tu_f_prev;     // für dTu/dt
+    float I;             // Integrator
+    int   pwm;           // aktueller PWM
+    phase_t phase;       // Phase
+    bool  initialized;
     bool  hold_initialized;
-    int   pwm_hold_est;  // initiale Schätzung des Halt-PWM
+    float Tu0;           // Start-Umgebung
+    // Reporting
+    float last_e, last_P, last_I, last_dTudt;
 } ctl = {0};
 
-// Hilfen
 static inline float clampf(float x, float lo, float hi){
     if (x < lo) return lo;
     if (x > hi) return hi;
@@ -70,108 +54,143 @@ static inline int clampi(int x, int lo, int hi){
     if (x > hi) return hi;
     return x;
 }
+static inline int estimate_hold_pwm(float Ts_local, float Tu0_local){
+    float dT0 = Ts_local - Tu0_local;
+    int est = (int)lroundf(HOLD_GAIN_EST * dT0);
+    return clampi(est, PWM_MIN, PWM_MAX);
+}
 
-void controlHeater(void)
+void controlHeater(float Ts)
 {
-    // 1) Messung & Initialisierung
-    float Tu = readTu();
+    float Tu = readTemperature();
 
+    // Init
     if (!ctl.initialized) {
         ctl.Tu_f  = Tu;
+        ctl.Tu_f_prev = Tu;
         ctl.Tu0   = Tu;
         ctl.I     = 0.0f;
         ctl.pwm   = 0;
         ctl.phase = PHASE_WARMUP;
         ctl.hold_initialized = false;
-
-        // Grobe Halt-Schätzung aus Startdifferenz
-        float dT = Ts - Tu;
-        int pwm_est = (int)lroundf(HOLD_GAIN_EST * dT);
-        ctl.pwm_hold_est = clampi(pwm_est, PWM_MIN, PWM_MAX);
-
         ctl.initialized = true;
+        ctl.last_e = ctl.last_P = ctl.last_I = ctl.last_dTudt = 0.0f;
     }
 
-    // 2) Tu filtern
+    // Filter
     const float a_tu = DT_SEC / (TU_FILTER_TAU_SEC + DT_SEC);
     ctl.Tu_f += a_tu * (Tu - ctl.Tu_f);
 
-    // 3) Sofort AUS, wenn Ts <= 0
+    // dTu/dt (gefiltert, K/s)
+    float dTudt = (ctl.Tu_f - ctl.Tu_f_prev) / DT_SEC;
+    ctl.Tu_f_prev = ctl.Tu_f;
+
+    // AUS bei Ts<=0
     if (Ts <= 0.0f) {
         ctl.I = 0.0f;
         ctl.pwm = 0;
         ctl.phase = PHASE_WARMUP;
         ctl.hold_initialized = false;
         setHeater(0);
+        // Reporting
+        char buf[192];
+        snprintf(buf, sizeof(buf),
+                 "Tu=%.2f Ts=%.1f e=%.2f dTudt=%.2f P=%.2f I=%.2f PWM=%d phase=%s",
+                 ctl.Tu_f, Ts, Ts - ctl.Tu_f, dTudt,
+                 0.0f, ctl.I, ctl.pwm, "Warmup");
+        reportValues(buf);
         return;
     }
 
-    // 4) Phasenlogik
+    // Fehler
+    float e_raw = Ts - ctl.Tu_f;
+    ctl.last_e = e_raw;
+
     int u_cmd = 0;
 
+    // ---------------- Warmup ----------------
     if (ctl.phase == PHASE_WARMUP) {
-        // Warmup: so schnell wie sinnvoll nach oben
-        int u_boost = ctl.pwm_hold_est + BOOST_EXTRA;
-        u_cmd = clampi(u_boost, PWM_MIN, PWM_MAX);
+        int hold_est = estimate_hold_pwm(Ts, ctl.Tu0);
 
-        // Umschalten auf PI kurz vor Soll
-        if (ctl.Tu_f >= (Ts - WARMUP_MARGIN)) {
+        if (ctl.Tu_f < (Ts - WARMUP_A_FULL_MARGIN)) {
+            // Stage A: Vollgas
+            u_cmd = PWM_MAX;
+        } else if (ctl.Tu_f < (Ts - WARMUP_B_TAPER_MARGIN)) {
+            // Stage B: linear 128 -> hold_est
+            float span = (WARMUP_A_FULL_MARGIN - WARMUP_B_TAPER_MARGIN); // >0
+            float x = (Ts - WARMUP_B_TAPER_MARGIN - ctl.Tu_f) / span;    // 1..0
+            x = clampf(x, 0.0f, 1.0f);
+            float u_f = hold_est + x * (PWM_MAX - hold_est);
+            u_cmd = clampi((int)lroundf(u_f), PWM_MIN, PWM_MAX);
+        } else {
+            // Übergabe an HOLD
             ctl.phase = PHASE_HOLD;
+            ctl.hold_initialized = false;
         }
+
+        ctl.last_P = 0.0f;
+        ctl.last_I = ctl.I;
     }
 
+    // ---------------- Hold (PI) ----------------
     if (ctl.phase == PHASE_HOLD) {
-        // 4a) Integrator beim ersten Eintritt „bumpless“ an das aktuelle Niveau angleichen
+        // Integrator „bumpless“ an Haltleistung koppeln
         if (!ctl.hold_initialized) {
-            // Starte Integrator nahe dem aktuellen (oder geschätzten) Halt-PWM
-            float I0 = (float)clampi(ctl.pwm, PWM_MIN, PWM_MAX);
-            if (I0 < 1.0f) I0 = (float)ctl.pwm_hold_est; // Falls wir mit 0 ankamen
-            ctl.I = clampf(I0, I_MIN, I_MAX);
+            ctl.I = (float)estimate_hold_pwm(Ts, ctl.Tu0);
+            ctl.I = clampf(ctl.I, I_MIN, I_MAX);
             ctl.hold_initialized = true;
         }
 
-        // 4b) PI auf Tu
-        float e = Ts - ctl.Tu_f;
+        float e = e_raw;
         if (fabsf(e) < TU_BAND) e = 0.0f;
 
         float P = KP * e;
+        float KI = (e < 0.0f) ? (KI_BASE * KI_BLEED_FACTOR) : KI_BASE;
+
         float I_candidate = ctl.I + (KI * e * DT_SEC);
         I_candidate = clampf(I_candidate, I_MIN, I_MAX);
 
         float u_pid = P + I_candidate;
-
-        // Begrenzen und Antiwindup (Top-Limit)
         int u_unsat = (int)lroundf(u_pid);
         int u_sat   = clampi(u_unsat, PWM_MIN, PWM_MAX);
 
+        // Antiwindup: oben nicht weiter integrieren
         bool limited_top = (u_sat < u_unsat) && (e > 0.0f);
         if (!limited_top) {
             ctl.I = I_candidate;
         }
 
-        u_cmd = u_sat;
-
-        // Optional: Wenn wir wieder deutlich unter Ts fallen (z. B. Tür auf),
-        // zurück in Warmup für schnelles Nachheizen:
-        if (ctl.Tu_f < Ts - (WARMUP_MARGIN + 0.5f)) {
+        // bei deutlichem Abfall zurück in Warmup
+        if (ctl.Tu_f < Ts - (WARMUP_A_FULL_MARGIN + 0.5f)) {
             ctl.phase = PHASE_WARMUP;
             ctl.hold_initialized = false;
-            // Neue Halt-Schätzung aus aktueller Umgebung
-            float dT = Ts - ctl.Tu_f;
-            int pwm_est = (int)lroundf(HOLD_GAIN_EST * dT);
-            ctl.pwm_hold_est = clampi(pwm_est, PWM_MIN, PWM_MAX);
-            // u_cmd wird unten noch geslewt & gesetzt
         }
+
+        // Slew pro Sekunde
+        int u_out = u_sat;
+        int max_up   = ctl.pwm + PWM_SLEW_PER_TICK;
+        int max_down = ctl.pwm - PWM_SLEW_PER_TICK;
+        if (u_out > max_up)   u_out = max_up;
+        if (u_out < max_down) u_out = max_down;
+
+        u_cmd = u_out;
+
+        ctl.last_P = P;
+        ctl.last_I = ctl.I;
     }
 
-    // 5) Slew-Rate-Begrenzung
-    int max_up   = ctl.pwm + PWM_SLEW_PER_TICK;
-    int max_down = ctl.pwm - PWM_SLEW_PER_TICK;
-    int u_slewed = u_cmd;
-    if (u_slewed > max_up)   u_slewed = max_up;
-    if (u_slewed < max_down) u_slewed = max_down;
-
-    // 6) Ausgeben
-    ctl.pwm = clampi(u_slewed, PWM_MIN, PWM_MAX);
+    // Ausgabe
+    ctl.pwm = clampi(u_cmd, PWM_MIN, PWM_MAX);
     setHeater(ctl.pwm);
+
+    // Reporting (jetzt bei jedem Call = 1 Hz)
+    ctl.last_dTudt = dTudt;
+    char buf[192];
+    snprintf(buf, sizeof(buf),
+             "Tu=%.2f Ts=%.1f e=%.2f dTudt=%.2f P=%.2f I=%.2f PWM=%d phase=%s hold_est=%d",
+             ctl.Tu_f, Ts, ctl.last_e, ctl.last_dTudt,
+             ctl.last_P, ctl.last_I, ctl.pwm,
+             (ctl.phase==PHASE_WARMUP ? "Warmup" : "Hold"),
+             estimate_hold_pwm(Ts, ctl.Tu0));
+    reportValues(buf);
 }

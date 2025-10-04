@@ -25,7 +25,7 @@ private:
 
     Handler input_;
     Subscription looped_;
-    Timer timer_;
+    Timer expiredTimer_;
     bool value_{};
     unsigned clicks_{};
     bool finished_{};
