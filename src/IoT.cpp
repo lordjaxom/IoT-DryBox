@@ -58,6 +58,8 @@ void IoTClass::loop()
     ArduinoOTA.handle();
 
     loopEvent();
+
+    delay(1); // save some power
 }
 
 void IoTClass::connectToWiFi()
