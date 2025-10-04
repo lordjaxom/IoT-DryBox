@@ -21,7 +21,7 @@ Mqtt mqtt{mqtt_server};
 
 static constexpr uint8_t onOffButtonPin = 0;
 static constexpr uint8_t upButtonPin = 2;
-static constexpr uint8_t downButtonPin = 16;
+static constexpr uint8_t downButtonPin = 12;
 static constexpr uint8_t ds18b20Pin = 13;
 static constexpr uint8_t heaterPin = 14;
 

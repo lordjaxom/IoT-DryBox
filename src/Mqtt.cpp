@@ -105,7 +105,7 @@ void Mqtt::mqttMessage(char const* topic, char const* payload, size_t const leng
     log("received ", message, " from ", topic);
 
     auto [begin, end] = subscriptions_.equal_range(topic);
-    std::for_each(begin, end, [&](auto const& pair) { pair.second(payload); });
+    std::for_each(begin, end, [&](auto const& pair) { pair.second(message); });
 }
 
 void Mqtt::mqttSubscribe(const String& topic)
