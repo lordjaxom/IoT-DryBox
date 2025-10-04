@@ -8,9 +8,9 @@
 namespace detail
 {
     template<typename T>
-    auto strAppend(String& result, T&& arg) -> decltype(result += std::forward<T>(arg), void())
+    auto strAppend(String& result, T&& arg) -> decltype(result.concat(std::forward<T>(arg)), void())
     {
-        result += std::forward<T>(arg);
+        result.concat(std::forward<T>(arg));
     }
 
     inline void str(String&) {}

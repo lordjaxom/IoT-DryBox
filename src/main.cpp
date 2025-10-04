@@ -6,6 +6,7 @@
 #include "DS18B20.hpp"
 #include "Gpio.hpp"
 #include "Mqtt.hpp"
+#include "Output.hpp"
 #include "PushButton.hpp"
 
 #include "Heating.h"
@@ -27,6 +28,7 @@ static constexpr uint8_t heaterPin = 14;
 PushButton onOffButton{debounce(gpioInput(onOffButtonPin))};
 PushButton upButton{debounce(gpioInput(upButtonPin))};
 PushButton downButton{debounce(gpioInput(downButtonPin))};
+AnalogOutput heater{analogOutput(heaterPin)};
 
 DHT20 dht20;
 DS18B20 ds18b20{ds18b20Pin};
@@ -37,6 +39,7 @@ Controller controller{
     onOffButton,
     upButton,
     downButton,
+    heater,
     dht20,
     ds18b20,
     display
@@ -44,7 +47,6 @@ Controller controller{
 
 void setup()
 {
-    pinMode(heaterPin, OUTPUT);
     Wire.setClock(400'000);
     IoT.begin();
 }
@@ -52,99 +54,21 @@ void setup()
 void loop()
 {
     IoT.loop();
-
-    //
-    // // Heating system ON:
-    // while (status == true) {
-    //     unsigned long currentMillis = millis();
-    //
-    //     if (digitalRead(Button1) == LOW) {
-    //         // Action button 1: switch heating system from on to off
-    //         status = !status;
-    //
-    //         sensorUpdate();
-    //         digitalWrite(Heater, LOW);
-    //         display.clearDisplay();
-    //         drawStatus();
-    //         drawTemperature();
-    //         drawHumidity();
-    //         display.display();
-    //         delay(200);
-    //     }
-    //     if (digitalRead(Button2) == LOW) {
-    //         // Action button 2: increase target temperature
-    //         TargetTemp = TargetTemp + 1;
-    //         previousMillis = currentMillis;
-    //         display.clearDisplay();
-    //         drawTargetTemperature();
-    //         display.display();
-    //         delay(200);
-    //     }
-    //     if (digitalRead(Button3) == LOW) {
-    //         // Action button 3: decrease target temperature
-    //         TargetTemp = TargetTemp - 1;
-    //         previousMillis = currentMillis;
-    //         display.clearDisplay();
-    //         drawTargetTemperature();
-    //         display.display();
-    //         delay(200);
-    //     }
-    //     if (currentMillis - previousMillis >= 100) {
-    //         previousMillis = currentMillis;
-    //         sensorUpdate();
-    //
-    //         display.clearDisplay();
-    //         drawStatus();
-    //         drawTemperature();
-    //         drawHumidity();
-    //         display.display();
-    //         heater();
-    //     }
-    // }
-    //
-    // // Heating system OFF:
-    // while (status == false) {
-    //     unsigned long currentMillis = millis();
-    //
-    //     if (digitalRead(Button1) == LOW) {
-    //         // Action button 1: switch heating system from off to on
-    //         status = !status;
-    //         sensorUpdate();
-    //         display.clearDisplay();
-    //         drawStatus();
-    //         drawTemperature();
-    //         drawHumidity();
-    //         display.display();
-    //         delay(200);
-    //     }
-    //     if (currentMillis - previousMillis >= 100) {
-    //         previousMillis = currentMillis;
-    //         sensorUpdate();
-    //
-    //         display.clearDisplay();
-    //         drawStatus();
-    //         drawTemperature();
-    //         drawHumidity();
-    //         display.display();
-    //     }
-    // }
 }
 
 extern "C" {
+float readTemperature()
+{
+    return ds18b20.getTemperature();
+}
 
-    float readTemperature()
-    {
-        return ds18b20.getTemperature();
-    }
+void setHeater(int const level)
+{
+    heater.set(level);
+}
 
-    void setHeater(int const level)
-    {
-        analogWrite(heaterPin, level);
-    }
-
-    void reportValues(char const *text)
-    {
-        mqtt.publishTelemetry("HEATING", text);
-    }
-
+void reportValues(char const* text)
+{
+    mqtt.publishTelemetry("HEATING", text);
+}
 } // extern "C"

@@ -5,8 +5,9 @@
 #include "Display.hpp"
 #include "DHT20.hpp"
 #include "DS18B20.hpp"
-#include "Logger.hpp"
+#include "Json.hpp"
 #include "Mqtt.hpp"
+#include "Output.hpp"
 #include "PushButton.hpp"
 
 #include "Heating.h"
@@ -100,10 +101,12 @@ Controller::Controller(
     PushButton& onOffButton,
     PushButton& upButton,
     PushButton& downButton,
+    AnalogOutput& heater,
     DHT20& dht20,
     DS18B20& ds18b20,
     Display& display
 ) : mqtt_{mqtt},
+    heater_{heater},
     dht20_{dht20},
     ds18b20_{ds18b20},
     display_{display},
@@ -113,7 +116,13 @@ Controller::Controller(
     upClicked_{upButton.clickedEvent.subscribe([this](auto const clicks) { upClicked(clicks); })},
     downClicked_{downButton.clickedEvent.subscribe([this](auto const clicks) { downClicked(clicks); })}
 {
-    IoT.beginEvent += [this]() { mode_ = std::make_unique<ControllerModeOff>(*this); };
+    IoT.beginEvent += [this]() { begin(); };
+}
+
+void Controller::begin()
+{
+    mqtt_.subscribeCommand("POWER", [this](auto const& payload) { powerReceived(payload); });
+    mode_ = std::make_unique<ControllerModeOff>(*this);
 }
 
 void Controller::update() const
@@ -124,11 +133,16 @@ void Controller::update() const
 
 void Controller::telemetry() const
 {
-    mqtt_.publishTelemetry("SENSOR", str(
-                               R"({"DHT20":{"Temperature":)", dht20_.getTemperature(), R"(,"Humidity":)",
-                               dht20_.getHumidity(), R"(},)",
-                               R"("DS18B20":{"Temperature":)", ds18b20_.getTemperature(), R"(}})"
-                           ));
+    JsonDocument doc;
+    doc["POWER"] = mode_->isPowered() ? "ON" : "OFF";
+    doc["PWM"] = heater_.get();
+    mqtt_.publishTelemetry("STATE", str(doc));
+
+    doc.clear();
+    doc["DHT20"]["Temperature"] = dht20_.getTemperature();
+    doc["DHT20"]["Humidity"] = dht20_.getHumidity();
+    doc["DS18B20"]["Temperature"] = ds18b20_.getTemperature();
+    mqtt_.publishTelemetry("SENSOR", str(doc));
 }
 
 void Controller::onOffClicked(unsigned const clicks) const
@@ -144,4 +158,11 @@ void Controller::upClicked(unsigned const clicks) const
 void Controller::downClicked(unsigned const clicks) const
 {
     if (clicks == 1) mode_->downClicked();
+}
+
+void Controller::powerReceived(String const& payload)
+{
+    if (payload == "ON" && !mode_->isPowered()) mode_ = std::make_unique<ControllerModeOn>(*this);
+    else if (payload == "OFF" && mode_->isPowered()) mode_ = std::make_unique<ControllerModeOff>(*this);
+    else mqtt_.publishState("POWER", mode_->isPowered() ? "ON" : "OFF");
 }

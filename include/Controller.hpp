@@ -7,11 +7,12 @@
 #include "Timer.hpp"
 
 class Controller;
+
+class AnalogOutput;
 class DHT20;
 class Display;
 class DS18B20;
 class Mqtt;
-class Output;
 class PushButton;
 
 class ControllerMode
@@ -20,6 +21,7 @@ public:
     explicit ControllerMode(Controller& c) noexcept;
     virtual ~ControllerMode() = default;
 
+    [[nodiscard]] virtual bool isPowered() const = 0;
     [[nodiscard]] virtual float getSetpoint() const = 0;
 
     virtual void update() = 0;
@@ -36,6 +38,7 @@ class ControllerModeOff final : public ControllerMode
 public:
     explicit ControllerModeOff(Controller& c) noexcept;
 
+    [[nodiscard]] bool isPowered() const override { return false; }
     [[nodiscard]] float getSetpoint() const override { return 0; }
 
     void update() override;
@@ -49,6 +52,7 @@ class ControllerModeOn final : public ControllerMode
 public:
     explicit ControllerModeOn(Controller& c) noexcept;
 
+    [[nodiscard]] bool isPowered() const override { return true; }
     [[nodiscard]] float getSetpoint() const override;
 
     void update() override;
@@ -64,6 +68,7 @@ class ControllerModeSet final : public ControllerMode
 public:
     explicit ControllerModeSet(Controller& c, float offset) noexcept;
 
+    [[nodiscard]] bool isPowered() const override { return true; }
     [[nodiscard]] float getSetpoint() const override;
 
     void update() override;
@@ -92,6 +97,7 @@ public:
         PushButton& onOffButton,
         PushButton& upButton,
         PushButton& downButton,
+        AnalogOutput& heater,
         DHT20& dht20,
         DS18B20& ds18b20,
         Display& display
@@ -99,13 +105,16 @@ public:
     Controller(Controller const&) = delete;
 
 private:
+    void begin();
     void update() const;
     void telemetry() const;
     void onOffClicked(unsigned clicks) const;
     void upClicked(unsigned clicks) const;
     void downClicked(unsigned clicks) const;
+    void powerReceived(String const& payload);
 
     Mqtt& mqtt_;
+    AnalogOutput& heater_;
     DHT20& dht20_;
     DS18B20& ds18b20_;
     Display& display_;
