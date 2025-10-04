@@ -24,14 +24,10 @@ ControllerModeOff::ControllerModeOff(Controller& c) noexcept
 
 void ControllerModeOff::update()
 {
-    c.display_.clear();
-    c.display_.drawStatusOff();
-    c.display_.drawTemperatureOff(c.ds18b20_.getTemperature());
-    c.display_.drawHumidityOff(c.dht20_.getHumidity());
-    c.display_.show();
+    c.display_.showStandbyPanel(c.ds18b20_.getTemperature(), c.dht20_.getHumidity());
 }
 
-void ControllerModeOff::next()
+void ControllerModeOff::onOffClicked()
 {
     c.mode_ = std::make_unique<ControllerModeOn>(c);
 }
@@ -42,26 +38,61 @@ ControllerModeOn::ControllerModeOn(Controller& c) noexcept
     c.mqtt_.publishState("POWER", "ON");
 }
 
-void ControllerModeOn::update()
+float ControllerModeOn::getSetpoint() const
 {
-    c.display_.clear();
-    c.display_.drawStatusOn();
-    c.display_.drawTemperatureOn(c.ds18b20_.getTemperature());
-    c.display_.drawHumidityOn(c.dht20_.getHumidity());
-    c.display_.show();
+    return c.setpoint_;
 }
 
-void ControllerModeOn::next()
+void ControllerModeOn::update()
+{
+    c.display_.showHeatingPanel(c.ds18b20_.getTemperature(), c.dht20_.getHumidity());
+}
+
+void ControllerModeOn::onOffClicked()
 {
     c.mode_ = std::make_unique<ControllerModeOff>(c);
 }
 
 void ControllerModeOn::upClicked()
 {
+    c.mode_ = std::make_unique<ControllerModeSet>(c, 1.0f);
 }
 
 void ControllerModeOn::downClicked()
 {
+    c.mode_ = std::make_unique<ControllerModeSet>(c, -1.0f);
+}
+
+ControllerModeSet::ControllerModeSet(Controller& c, float const offset) noexcept
+    : ControllerMode{c},
+      expireTimer_{[&] { c.mode_ = std::make_unique<ControllerModeOn>(c); }}
+{
+    adjust(offset);
+}
+
+float ControllerModeSet::getSetpoint() const
+{
+    return c.setpoint_;
+}
+
+void ControllerModeSet::update()
+{
+}
+
+void ControllerModeSet::onOffClicked()
+{
+    c.mode_ = std::make_unique<ControllerModeOff>(c);
+}
+
+void ControllerModeSet::adjust(float const offset)
+{
+    c.setpoint_ += offset;
+    if (c.setpoint_ < 40.0f) c.setpoint_ = 40.0f;
+    if (c.setpoint_ > 70.0f) c.setpoint_ = 70.0f;
+
+    c.display_.showSetpointPanel(c.setpoint_);
+
+    expireTimer_.start(expireDelay);
 }
 
 Controller::Controller(
@@ -88,21 +119,21 @@ Controller::Controller(
 void Controller::update() const
 {
     mode_->update();
-    controlHeater(mode_->getTargetTemperature());
+    controlHeater(mode_->getSetpoint());
 }
 
 void Controller::telemetry() const
 {
-    mqtt_.publishTelemetry("SENSOR",str(
-        R"({"DHT20":{"Temperature":)", dht20_.getTemperature(), R"(,"Humidity":)", dht20_.getHumidity(), R"(},)",
-        R"("DS18B20":{"Temperature":)", ds18b20_.getTemperature(), R"(}})"
-    ));
+    mqtt_.publishTelemetry("SENSOR", str(
+                               R"({"DHT20":{"Temperature":)", dht20_.getTemperature(), R"(,"Humidity":)",
+                               dht20_.getHumidity(), R"(},)",
+                               R"("DS18B20":{"Temperature":)", ds18b20_.getTemperature(), R"(}})"
+                           ));
 }
 
 void Controller::onOffClicked(unsigned const clicks) const
 {
-    mqtt_.publishState("BUTTON1", str(clicks));
-    if (clicks == 1) mode_->next();
+    if (clicks == 1) mode_->onOffClicked();
 }
 
 void Controller::upClicked(unsigned const clicks) const

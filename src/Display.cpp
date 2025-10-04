@@ -14,67 +14,9 @@ Display::Display()
     IoT.beginEvent += [this] { begin(); };
 }
 
-void Display::clear()
+void Display::showStandbyPanel(float const temperature, float const humidity)
 {
     display_.clearDisplay();
-}
-
-void Display::show()
-{
-    display_.display();
-}
-
-void Display::drawStatusOn()
-{
-    display_.fillRect(66, 0, 62, 18, SSD1306_WHITE);
-    display_.fillRect(67, 1, 36, 16, SSD1306_BLACK);
-
-    display_.setTextSize(2);
-    display_.setTextColor(SSD1306_WHITE);
-    display_.setCursor(68, 2);
-    display_.println(F("off"));
-    display_.setTextColor(SSD1306_BLACK);
-    display_.setCursor(104, 2);
-    display_.println(F("on"));
-}
-
-void Display::drawTemperatureOn(float const temperature)
-{
-    int TempInteger = int(temperature);
-    int TempFraction = int((temperature - TempInteger) * 10);
-    char TempIntegerDisplay[4];
-    char TempFractionDisplay[4];
-    dtostrf(TempInteger, 2, 0, TempIntegerDisplay);
-    dtostrf(TempFraction, 1, 0, TempFractionDisplay);
-
-    display_.setTextSize(4);
-    display_.setTextColor(SSD1306_WHITE);
-
-    display_.setCursor(4, 30);
-    display_.print(TempIntegerDisplay);
-    display_.setCursor(64, 30);
-    display_.print(TempFractionDisplay);
-    display_.setCursor(104, 30);
-    display_.print(F("C"));
-    display_.fillRect(54, 54, 4, 4, SSD1306_WHITE);
-    display_.fillCircle(95, 34, 4, SSD1306_WHITE);
-    display_.fillCircle(95, 34, 2, SSD1306_BLACK);
-}
-
-void Display::drawHumidityOn(float const humidity)
-{
-    char HumIntegerDisplay[4];
-    dtostrf(humidity, 2, 0, HumIntegerDisplay);
-
-    display_.setTextSize(2);
-    display_.setTextColor(SSD1306_WHITE);
-    display_.setCursor(8, 2);
-    display_.print(HumIntegerDisplay);
-    display_.println(F(" %"));
-}
-
-void Display::drawStatusOff()
-{
     display_.fillRect(66, 0, 62, 18, SSD1306_WHITE);
     display_.fillRect(103, 1, 24, 16, SSD1306_BLACK);
 
@@ -85,43 +27,80 @@ void Display::drawStatusOff()
     display_.setTextColor(SSD1306_WHITE);
     display_.setCursor(104, 2);
     display_.println(F("on"));
-}
-
-void Display::drawTemperatureOff(float const temperature)
-{
-    char tempDisplay[4];
-    dtostrf(temperature, 2, 0, tempDisplay);
 
     display_.setTextSize(2);
     display_.setTextColor(SSD1306_WHITE);
     display_.setCursor(8, 2);
-    display_.print(tempDisplay);
-
+    display_.printf("%2.0f", temperature);
     display_.println(F(" C"));
     display_.fillCircle(38, 5, 3, SSD1306_WHITE);
     display_.fillCircle(38, 5, 2, SSD1306_BLACK);
-}
-
-void Display::drawHumidityOff(float const humidity)
-{
-    int const humInt = static_cast<int>(humidity);
-    char humIntDisplay[4];
-    dtostrf(humInt, 2, 0, humIntDisplay);
-
-    int const humFrac = static_cast<int>((humidity - humInt) * 10);
-    char humFracDisplay[4];
-    dtostrf(humFrac, 1, 0, humFracDisplay);
 
     display_.setTextSize(4);
     display_.setTextColor(SSD1306_WHITE);
     display_.setCursor(4, 30);
-    display_.print(humIntDisplay);
-    display_.setCursor(64, 30);
-    display_.print(humFracDisplay);
+    display_.printf("%2.1f", humidity);
     display_.setCursor(104, 30);
     display_.println(F("%"));
-
     display_.fillRect(54, 54, 4, 4, SSD1306_WHITE);
+
+    display_.display();
+}
+
+void Display::showHeatingPanel(float const temperature, float const humidity)
+{
+    display_.clearDisplay();
+    display_.fillRect(66, 0, 62, 18, SSD1306_WHITE);
+    display_.fillRect(67, 1, 36, 16, SSD1306_BLACK);
+
+    display_.setTextSize(2);
+    display_.setTextColor(SSD1306_WHITE);
+    display_.setCursor(68, 2);
+    display_.println(F("off"));
+    display_.setTextColor(SSD1306_BLACK);
+    display_.setCursor(104, 2);
+    display_.println(F("on"));
+
+    display_.setTextSize(4);
+    display_.setTextColor(SSD1306_WHITE);
+    display_.setCursor(4, 30);
+    display_.printf("%2.1f", temperature);
+    display_.setCursor(104, 30);
+    display_.print(F("C"));
+    display_.fillRect(54, 54, 4, 4, SSD1306_WHITE);
+    display_.fillCircle(95, 34, 4, SSD1306_WHITE);
+    display_.fillCircle(95, 34, 2, SSD1306_BLACK);
+
+    display_.setTextSize(2);
+    display_.setTextColor(SSD1306_WHITE);
+    display_.setCursor(8, 2);
+    display_.printf("%2.0f", humidity);
+    display_.println(F(" %"));
+
+    display_.display();
+}
+
+void Display::showSetpointPanel(float const setpoint)
+{
+    display_.clearDisplay();
+
+    display_.setCursor(0, 2);
+    display_.setTextSize(2);
+    display_.setTextColor(SSD1306_WHITE);
+    display_.print(F("Target"));
+    display_.setCursor(80, 2);
+    display_.print(F("Temp"));
+
+    display_.setTextSize(4);
+    display_.setTextColor(SSD1306_WHITE);
+    display_.setCursor(4, 30);
+    display_.printf("%3.0f", setpoint);
+    display_.setCursor(90, 30);
+    display_.print(F("C"));
+    display_.fillCircle(81, 34, 4, SSD1306_WHITE);
+    display_.fillCircle(81, 34, 2, SSD1306_BLACK);
+
+    display_.display();
 }
 
 void Display::begin()

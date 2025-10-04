@@ -14,16 +14,9 @@ public:
     Display();
     Display(Display const&) = delete;
 
-    void clear();
-    void show();
-
-    void drawStatusOn();
-    void drawTemperatureOn(float temperature);
-    void drawHumidityOn(float humidity);
-
-    void drawStatusOff();
-    void drawTemperatureOff(float temperature);
-    void drawHumidityOff(float humidity);
+    void showStandbyPanel(float temperature, float humidity);
+    void showHeatingPanel(float temperature, float humidity);
+    void showSetpointPanel(float setpoint);
 
 private:
     void begin();

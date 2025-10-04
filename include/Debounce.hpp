@@ -20,16 +20,14 @@ public:
 
     Type operator()()
     {
-        auto value = input_();
-        if (value != lastValue_) {
+        if (auto const value = input_(); value != lastValue_) {
+            lastValue_ = value;
             timestamp_ = millis();
-        }
-        if (millis() - timestamp_ > debounceDelay) {
+        } else if (millis() - timestamp_ > debounceDelay) {
             // whatever the reading is at, it's been there for longer than the debounce
             // delay, so take it as the actual current state:
-            value_ = value;
+            value_ = lastValue_;
         }
-        lastValue_ = value;
         return value_;
     }
 

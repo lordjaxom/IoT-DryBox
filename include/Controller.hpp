@@ -20,10 +20,10 @@ public:
     explicit ControllerMode(Controller& c) noexcept;
     virtual ~ControllerMode() = default;
 
-    [[nodiscard]] virtual float getTargetTemperature() const = 0;
+    [[nodiscard]] virtual float getSetpoint() const = 0;
 
     virtual void update() = 0;
-    virtual void next() = 0;
+    virtual void onOffClicked() = 0;
     virtual void upClicked() = 0;
     virtual void downClicked() = 0;
 
@@ -36,10 +36,10 @@ class ControllerModeOff final : public ControllerMode
 public:
     explicit ControllerModeOff(Controller& c) noexcept;
 
-    [[nodiscard]] float getTargetTemperature() const override { return 0; }
+    [[nodiscard]] float getSetpoint() const override { return 0; }
 
     void update() override;
-    void next() override;
+    void onOffClicked() override;
     void upClicked() override {}
     void downClicked() override {}
 };
@@ -49,12 +49,32 @@ class ControllerModeOn final : public ControllerMode
 public:
     explicit ControllerModeOn(Controller& c) noexcept;
 
-    [[nodiscard]] float getTargetTemperature() const override { return 45.0f; }
+    [[nodiscard]] float getSetpoint() const override;
 
     void update() override;
-    void next() override;
+    void onOffClicked() override;
     void upClicked() override;
     void downClicked() override;
+};
+
+class ControllerModeSet final : public ControllerMode
+{
+    static constexpr uint64_t expireDelay = 2000;
+
+public:
+    explicit ControllerModeSet(Controller& c, float offset) noexcept;
+
+    [[nodiscard]] float getSetpoint() const override;
+
+    void update() override;
+    void onOffClicked() override;
+    void upClicked() override { adjust(1.0f); }
+    void downClicked() override { adjust(-1.0f); }
+
+private:
+    void adjust(float offset);
+
+    Timer expireTimer_;
 };
 
 class Controller
@@ -64,6 +84,7 @@ class Controller
 
     friend class ControllerModeOff;
     friend class ControllerModeOn;
+    friend class ControllerModeSet;
 
 public:
     Controller(
@@ -94,6 +115,7 @@ private:
     Subscription upClicked_;
     Subscription downClicked_;
     std::unique_ptr<ControllerMode> mode_{};
+    float setpoint_{45.0f};
 };
 
 #endif
