@@ -36,12 +36,14 @@ void Display::showStandbyPanel(float const temperature, float const humidity)
     display_.fillCircle(38, 5, 3, SSD1306_WHITE);
     display_.fillCircle(38, 5, 2, SSD1306_BLACK);
 
+    auto const humidityInt = static_cast<int>(humidity);
+    auto const humidityFrac = static_cast<int>((humidity - static_cast<float>(humidityInt)) * 10.0f);
     display_.setTextSize(4);
     display_.setTextColor(SSD1306_WHITE);
     display_.setCursor(4, 30);
-    display_.print(static_cast<int>(humidity));
+    display_.print(humidityInt);
     display_.setCursor(64,30);
-    display_.printf("%1.0f", (humidity - static_cast<float>(static_cast<int>(humidity))) * 10.0f);
+    display_.print(humidityFrac);
     display_.setCursor(104, 30);
     display_.println(F("%"));
     display_.fillRect(54, 54, 4, 4, SSD1306_WHITE);
@@ -63,12 +65,14 @@ void Display::showHeatingPanel(float const temperature, float const humidity)
     display_.setCursor(104, 2);
     display_.println(F("on"));
 
+    auto const temperatureInt = static_cast<int>(temperature);
+    auto const temperatureFrac = static_cast<int>((temperature - static_cast<float>(temperatureInt)) * 10.0f);
     display_.setTextSize(4);
     display_.setTextColor(SSD1306_WHITE);
     display_.setCursor(4, 30);
-    display_.print(static_cast<int>(temperature));
+    display_.print(temperatureInt);
     display_.setCursor(64,30);
-    display_.printf("%1.0f", (temperature - static_cast<float>(static_cast<int>(temperature))) * 10.0f);
+    display_.print(temperatureFrac);
     display_.setCursor(104, 30);
     display_.print(F("C"));
     display_.fillRect(54, 54, 4, 4, SSD1306_WHITE);
